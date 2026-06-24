@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Typify</title>
+    <title>Tipify Pro</title>
     <link rel="icon" type="image/png" href="favicon.png">
 
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -134,7 +134,7 @@
         .chip:hover { background: white; transform: translateY(-5px) scale(1.1); box-shadow: 0 10px 25px rgba(99, 102, 241, 0.25); color: var(--primary); }
         .chip.active { background: var(--text-main); color: white; border-color: transparent; box-shadow: 0 10px 25px rgba(0,0,0,0.3); transform: scale(1.15) rotate(-2deg); }
 
-        /* --- CARDS (ESTABLE) --- */
+        /* --- CARDS --- */
         #results { display: grid; gap: 30px; padding-bottom: 60px; }
         
         .card { 
@@ -416,7 +416,7 @@
     <div id="mainContainer" class="main-container">
         
         <div class="header-section">
-            <h1>Typify</h1>
+            <h1>Tipify Pro</h1>
             <div id="statusEl" class="status-pill"><div class="dot"></div><span id="statusTxt">Conectando...</span></div>
 
             <div id="searchWrapper" class="search-wrapper">
@@ -616,7 +616,8 @@
             }
         };
 
-        function escapeHtml(t) { return t.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n'); } 
+        /* FUNCION ROBUSTA PARA ESCAPAR TEXTO */
+        function escapeHtml(t) { return t ? String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n') : ''; } 
         function toast(m) { document.getElementById('toastMsg').innerText = m; el.toast.classList.add('visible'); setTimeout(()=>el.toast.classList.remove('visible'), 2000); }
 
         function createCard(x, i) {
@@ -695,13 +696,19 @@
             </div>`;
         }
 
+        /* FUNCION LOGICA DE CLIC EN SUGERENCIA */
+        window.clickSuggestion = (title) => {
+            hidePreview();
+            filterByLink(title);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
         function createMini(title) {
-            const item = db.find(d => d.titulo === title);
-            const clickAction = item ? `document.querySelector('.card:nth-child(${db.indexOf(item)+1})')?.scrollIntoView({behavior:'smooth'}) || filterByLink('${escapeHtml(title)}')` : '';
             const hoverAction = `showPreview('${escapeHtml(title)}')`;
             const leaveAction = `hidePreview()`;
+            
             return `
-            <div class="mini-card" onclick="${clickAction}" onmouseenter="${hoverAction}" onmouseleave="${leaveAction}">
+            <div class="mini-card" onclick="clickSuggestion('${escapeHtml(title)}')" onmouseenter="${hoverAction}" onmouseleave="${leaveAction}">
                 <div class="mini-icon-circle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></div>
                 <div class="mini-content"><div class="mini-title">${title}</div></div>
                 <svg class="mini-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M9 18l6-6-6-6"/></svg>
@@ -786,12 +793,12 @@
         // GESTIÓN DE ENLACES INTERNOS
         window.addLink = () => { const val = el.linkInput.value.trim(); if(val && !currentLinks.includes(val)) { currentLinks.push(val); renderLinksList(); el.linkInput.value = ''; }};
         window.removeLink = (val) => { currentLinks = currentLinks.filter(l => l !== val); renderLinksList(); };
-        function renderLinksList() { el.linkList.innerHTML = currentLinks.map(l => `<span class="link-pill">${l} <span class="link-remove" onclick="removeLink('${l}')">✕</span></span>`).join(''); }
+        function renderLinksList() { el.linkList.innerHTML = currentLinks.map(l => `<span class="link-pill">${l} <span class="link-remove" onclick="removeLink('${escapeHtml(l)}')">✕</span></span>`).join(''); }
 
         // GESTIÓN DE ENLACES WEB
         window.addWebLink = () => { const val = el.webInput.value.trim(); if(val && !currentWebLinks.includes(val)) { currentWebLinks.push(val); renderWebLinksList(); el.webInput.value = ''; }};
         window.removeWebLink = (val) => { currentWebLinks = currentWebLinks.filter(l => l !== val); renderWebLinksList(); };
-        function renderWebLinksList() { el.webList.innerHTML = currentWebLinks.map(l => `<span class="link-pill web">${l.length > 25 ? l.substring(0,25)+'...' : l} <span class="link-remove" onclick="removeWebLink('${l}')">✕</span></span>`).join(''); }
+        function renderWebLinksList() { el.webList.innerHTML = currentWebLinks.map(l => `<span class="link-pill web">${l.length > 25 ? l.substring(0,25)+'...' : l} <span class="link-remove" onclick="removeWebLink('${escapeHtml(l)}')">✕</span></span>`).join(''); }
 
         window.modalOpen = (idx=-1) => { 
             editIdx = idx; el.mTitle.innerText = idx===-1?"Nueva Tipificación":"Editar Registro"; el.btnSave.innerText=idx===-1?"Crear":"Guardar Cambios"; 
