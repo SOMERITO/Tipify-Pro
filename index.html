@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         /* =========================================
-           ESTILOS v69.4.4 (Copy All ajustado + Loader Fix)
+           ESTILOS v69.4.5 (Estabilidad y Tooltip)
            ========================================= */
         :root {
             --primary: #6366f1;
@@ -64,6 +64,7 @@
             border: 1px solid rgba(226, 232, 240, 0.8); border-radius: 16px; padding: 16px; 
             margin-bottom: 12px; cursor: pointer; position: relative; overflow: hidden;
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: auto; /* Asegura que detecte los clics */
         }
         .mini-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--primary); opacity: 0.6; transition: 0.3s; }
         .mini-card:hover { transform: translateX(10px) scale(1.02); box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.3); border-color: var(--primary); }
@@ -546,13 +547,37 @@
             const scrollY = window.scrollY;
             const btnTop = document.getElementById('btnTop');
             
-            // Lógica Search Bar
             if (scrollY > 150) el.searchWrap.classList.add('docked'); 
             else el.searchWrap.classList.remove('docked');
 
-            // Lógica Back to Top
             if (scrollY > 300) btnTop.classList.add('visible');
             else btnTop.classList.remove('visible');
+        });
+
+        // DELEGACIÓN DE EVENTOS PARA LAS SUGERENCIAS (TOTALMENTE ESTABLE)
+        el.sidebarContent.addEventListener('click', (e) => {
+            const card = e.target.closest('.mini-card');
+            if (!card) return;
+            const title = card.getAttribute('data-link');
+            if (title) {
+                hidePreview();
+                el.search.value = title;
+                el.clear.classList.add('visible');
+                // Al hacer clic, quitamos filtros para asegurar que encuentre la tarjeta
+                filtro = "TODOS";
+                statusFilter = "ALL";
+                render();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+
+        el.sidebarContent.addEventListener('mouseover', (e) => {
+            const card = e.target.closest('.mini-card');
+            if (card) showPreview(card.getAttribute('data-link'));
+        });
+
+        el.sidebarContent.addEventListener('mouseout', (e) => {
+            if (e.target.closest('.mini-card')) hidePreview();
         });
 
         async function init() {
@@ -583,64 +608,37 @@
             return text ? text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
         }
 
-        /* FUNCIÓN MÁGICA: ABRE Y COPIA AL MISMO TIEMPO */
+        /* ESCAPADORES DE TEXTO SEGUROS PARA EVITAR BUGS */
+        function escapeHtml(t) { 
+            if (!t) return '';
+            return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function escapeJs(t) {
+            return String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
+        }
+
         window.openLinks = (idx) => {
             const item = db[idx];
             const urls = item.webLinks && item.webLinks.length > 0 ? item.webLinks : (item.webLink ? [item.webLink] : []);
-            
             if(urls.length === 0) return toast("No hay enlaces guardados");
 
-            if (urls.length > 0) {
-                 navigator.clipboard.writeText(urls[0]);
-                 toast("Enlace copiado y abriendo...");
-            }
-
-            urls.forEach(url => {
-                const newWin = window.open(url, '_blank');
-                if (newWin) newWin.focus();
-            });
+            if (urls.length > 0) { navigator.clipboard.writeText(urls[0]); toast("Enlace copiado y abriendo..."); }
+            urls.forEach(url => { const newWin = window.open(url, '_blank'); if (newWin) newWin.focus(); });
         }
 
-        /* COPIAR RUTA O TEXTO GENÉRICO */
-        window.copyText = (text) => {
-            navigator.clipboard.writeText(text);
-            toast("¡Texto copiado!");
-        };
-
-        /* FUNCION DE COPIADO ORIGINAL (Respeta espacios) */
-        window.copyDesc = (idx) => {
-            const item = db[idx];
-            if (item && item.descripcion) {
-                navigator.clipboard.writeText(item.descripcion);
-                toast("¡Copiado!");
-            }
-        };
-
-        /* FUNCION ROBUSTA PARA ESCAPAR TEXTO */
-        function escapeHtml(t) { return t ? String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n') : ''; } 
+        window.copyText = (text) => { navigator.clipboard.writeText(text); toast("¡Texto copiado!"); };
+        window.copyDesc = (idx) => { const item = db[idx]; if (item && item.descripcion) { navigator.clipboard.writeText(item.descripcion); toast("¡Copiado!"); } };
         function toast(m) { document.getElementById('toastMsg').innerText = m; el.toast.classList.add('visible'); setTimeout(()=>el.toast.classList.remove('visible'), 2000); }
 
         function createCard(x, i) {
             const c = getColor(x.clasificacion); 
             
-            /* LÓGICA PARA BOTONES DE RUTA + BOTÓN COPIAR TODO */
             const rawRuta = x.ruta || "";
             let rutaHTML = "";
             if (rawRuta) {
                 const parts = rawRuta.split('>').map(p => p.trim()).filter(p => p);
-                
-                const buttonsHTML = parts.map(p => 
-                    `<button class="route-btn" title="Copiar: ${escapeHtml(p)}" onclick="copyText('${escapeHtml(p)}')">
-                        ${escapeHtml(p)}
-                    </button>`
-                ).join('<span class="route-sep">></span>');
-                
-                const copyAllBtn = `
-                    <button class="btn-copy-route" title="Copiar ruta completa" onclick="copyText('${escapeHtml(rawRuta)}')">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    </button>
-                `;
-
+                const buttonsHTML = parts.map(p => `<button class="route-btn" title="Copiar: ${escapeHtml(p)}" onclick="copyText('${escapeJs(p)}')">${escapeHtml(p)}</button>`).join('<span class="route-sep">></span>');
+                const copyAllBtn = `<button class="btn-copy-route" title="Copiar ruta completa" onclick="copyText('${escapeJs(rawRuta)}')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>`;
                 rutaHTML = `<div class="route-container">${buttonsHTML} ${copyAllBtn}</div>`;
             }
             
@@ -650,25 +648,19 @@
             let colorClass = ""; let obsClass = ""; let obsHTML = "";
             if(x.status === "orange") { colorClass = "is-orange"; obsClass = "is-obs-orange"; }
             if(x.status === "red") { colorClass = "is-red"; obsClass = "is-obs-red"; }
-            if(x.status && x.status !== 'default' && x.observacion) { obsHTML = `<div class="obs-bubble ${obsClass}">${x.observacion}</div>`; }
+            if(x.status && x.status !== 'default' && x.observacion) { obsHTML = `<div class="obs-bubble ${obsClass}">${escapeHtml(x.observacion)}</div>`; }
 
             const countWeb = (x.webLinks && x.webLinks.length) || (x.webLink ? 1 : 0);
-            
-            const webBtn = countWeb > 0 ? 
-                `<button class="icon-btn link" onclick="openLinks(${i})" title="Abrir y Copiar Enlace">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                    ${countWeb > 1 ? `<span class="web-count-badge">${countWeb}</span>` : ''}
-                </button>` 
-                : '';
+            const webBtn = countWeb > 0 ? `<button class="icon-btn link" onclick="openLinks(${i})" title="Abrir y Copiar Enlace"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>${countWeb > 1 ? `<span class="web-count-badge">${countWeb}</span>` : ''}</button>` : '';
 
             return `
             <div class="card ${colorClass}" style="animation-delay:${i*0.07}s">
                 <div class="card-shine-wrapper">
                     <div class="card-header">
                         <div>
-                            ${x.clasificacion?`<span class="badge" style="background:${c.bg};color:${c.t}">${x.clasificacion}</span>`:''}
+                            ${x.clasificacion?`<span class="badge" style="background:${c.bg};color:${c.t}">${escapeHtml(x.clasificacion)}</span>`:''}
                             ${linkBadge}
-                            <div class="card-title">${x.titulo}</div>
+                            <div class="card-title">${escapeHtml(x.titulo)}</div>
                         </div>
                         <div class="actions">
                             ${webBtn}
@@ -678,7 +670,7 @@
                     </div>
                     <div class="desc-box" onclick="copyDesc(${i})">
                         <div class="tooltip-copy">CLICK PARA COPIAR</div>
-                        <pre class="desc-text">${x.descripcion}</pre>
+                        <pre class="desc-text">${escapeHtml(x.descripcion)}</pre>
                     </div>
                     ${rutaHTML}
                 </div>
@@ -696,21 +688,12 @@
             </div>`;
         }
 
-        /* FUNCION LOGICA DE CLIC EN SUGERENCIA */
-        window.clickSuggestion = (title) => {
-            hidePreview();
-            filterByLink(title);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        };
-
         function createMini(title) {
-            const hoverAction = `showPreview('${escapeHtml(title)}')`;
-            const leaveAction = `hidePreview()`;
-            
+            const safeTitle = escapeHtml(title);
             return `
-            <div class="mini-card" onclick="clickSuggestion('${escapeHtml(title)}')" onmouseenter="${hoverAction}" onmouseleave="${leaveAction}">
+            <div class="mini-card" data-link="${safeTitle}">
                 <div class="mini-icon-circle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></div>
-                <div class="mini-content"><div class="mini-title">${title}</div></div>
+                <div class="mini-content"><div class="mini-title">${safeTitle}</div></div>
                 <svg class="mini-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M9 18l6-6-6-6"/></svg>
             </div>`;
         }
@@ -728,7 +711,7 @@
         function render() {
             const uniqueCats = [...new Set(db.map(x=>x.clasificacion).filter(Boolean))].sort();
             const cats = ["TODOS", ...uniqueCats]; 
-            el.chips.innerHTML = cats.map(c => `<button class="chip ${filtro===c?'active':''}" onclick="setFilter('${c}')">${c==="TODOS"?"Todos":c}</button>`).join('');
+            el.chips.innerHTML = cats.map(c => `<button class="chip ${filtro===c?'active':''}" onclick="setFilter('${escapeJs(c)}')">${escapeHtml(c==="TODOS"?"Todos":c)}</button>`).join('');
             
             const countOrange = db.filter(x => x.status === 'orange').length;
             const countRed = db.filter(x => x.status === 'red').length;
@@ -780,7 +763,7 @@
 
         window.setFilter = c => { filtro = c; render(); }; 
         window.setStatusFilter = s => { statusFilter = s; render(); };
-        window.filterByLink = t => { el.search.value = t; el.clear.classList.add('visible'); render(); };
+        window.filterByLink = t => { el.search.value = t; el.clear.classList.add('visible'); filtro="TODOS"; statusFilter="ALL"; render(); };
 
         window.selectColor = (c) => {
             tempColor = c;
@@ -790,35 +773,28 @@
             if(c === 'red') el.cRed.classList.add('selected');
         };
 
-        // GESTIÓN DE ENLACES INTERNOS
+        // GESTIÓN DE ENLACES (Seguro usando Indices en lugar de Textos)
         window.addLink = () => { const val = el.linkInput.value.trim(); if(val && !currentLinks.includes(val)) { currentLinks.push(val); renderLinksList(); el.linkInput.value = ''; }};
-        window.removeLink = (val) => { currentLinks = currentLinks.filter(l => l !== val); renderLinksList(); };
-        function renderLinksList() { el.linkList.innerHTML = currentLinks.map(l => `<span class="link-pill">${l} <span class="link-remove" onclick="removeLink('${escapeHtml(l)}')">✕</span></span>`).join(''); }
+        window.removeLink = (idx) => { currentLinks.splice(idx, 1); renderLinksList(); };
+        function renderLinksList() { el.linkList.innerHTML = currentLinks.map((l, idx) => `<span class="link-pill">${escapeHtml(l)} <span class="link-remove" onclick="removeLink(${idx})">✕</span></span>`).join(''); }
 
-        // GESTIÓN DE ENLACES WEB
         window.addWebLink = () => { const val = el.webInput.value.trim(); if(val && !currentWebLinks.includes(val)) { currentWebLinks.push(val); renderWebLinksList(); el.webInput.value = ''; }};
-        window.removeWebLink = (val) => { currentWebLinks = currentWebLinks.filter(l => l !== val); renderWebLinksList(); };
-        function renderWebLinksList() { el.webList.innerHTML = currentWebLinks.map(l => `<span class="link-pill web">${l.length > 25 ? l.substring(0,25)+'...' : l} <span class="link-remove" onclick="removeWebLink('${escapeHtml(l)}')">✕</span></span>`).join(''); }
+        window.removeWebLink = (idx) => { currentWebLinks.splice(idx, 1); renderWebLinksList(); };
+        function renderWebLinksList() { el.webList.innerHTML = currentWebLinks.map((l, idx) => `<span class="link-pill web">${escapeHtml(l.length > 25 ? l.substring(0,25)+'...' : l)} <span class="link-remove" onclick="removeWebLink(${idx})">✕</span></span>`).join(''); }
 
         window.modalOpen = (idx=-1) => { 
             editIdx = idx; el.mTitle.innerText = idx===-1?"Nueva Tipificación":"Editar Registro"; el.btnSave.innerText=idx===-1?"Crear":"Guardar Cambios"; 
             const d=idx===-1?{}:db[idx]; 
             el.in.c.value=d.clasificacion||""; el.in.t.value=d.titulo||""; el.in.d.value=d.descripcion||""; el.in.r.value=d.ruta||""; el.in.o.value=d.observacion||"";
             
-            // Cargar enlaces internos
             currentLinks = (d.links && Array.isArray(d.links)) ? [...d.links] : []; renderLinksList(); 
 
-            // Cargar enlaces web
-            if (d.webLinks && Array.isArray(d.webLinks)) {
-                currentWebLinks = [...d.webLinks];
-            } else if (d.webLink) {
-                currentWebLinks = [d.webLink];
-            } else {
-                currentWebLinks = [];
-            }
+            if (d.webLinks && Array.isArray(d.webLinks)) { currentWebLinks = [...d.webLinks]; } 
+            else if (d.webLink) { currentWebLinks = [d.webLink]; } 
+            else { currentWebLinks = []; }
             renderWebLinksList();
 
-            el.datalist.innerHTML = db.map(x => `<option value="${x.titulo}">`).join(''); 
+            el.datalist.innerHTML = db.map(x => `<option value="${escapeHtml(x.titulo)}">`).join(''); 
             selectColor(d.status || 'default');
             el.modal.classList.add('active'); setTimeout(()=>el.in.c.focus(), 100); 
         };
